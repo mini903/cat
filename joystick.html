@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Joystick Control</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #joystick {
+            width: 200px;
+            height: 200px;
+            background: #ddd;
+            border-radius: 50%;
+            position: relative;
+            touch-action: none;
+        }
+        #stick {
+            width: 80px;
+            height: 80px;
+            background: #666;
+            border-radius: 50%;
+            position: absolute;
+            top: 60px;
+            left: 60px;
+        }
+        #status {
+            position: absolute;
+            bottom: 20px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="joystick">
+    <div id="stick"></div>
+</div>
+<div id="status">x: 0, y: 0</div>
+
+<script>
+    const stick = document.getElementById("stick");
+    const joystick = document.getElementById("joystick");
+    const status = document.getElementById("status");
+
+    // Raspberry Pi WebSocket 주소
+    const ws = new WebSocket("ws://" + window.location.hostname + ":8000/ws/joystick");
+
+    ws.onopen = () => console.log("웹소켓 연결됨!");
+    ws.onmessage = (msg) => console.log("수신:", msg.data);
+
+    let dragging = false;
+
+    joystick.addEventListener("mousedown", () => dragging = true);
+    joystick.addEventListener("mouseup", () => dragging = false);
+    joystick.addEventListener("mouseleave", () => dragging = false);
+
+    joystick.addEventListener("mousemove", (event) => {
+        if (!dragging) return;
+
+        const rect = joystick.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        let x = event.clientX - centerX;
+        let y = event.clientY - centerY;
+
+        // 최대 반경 제한
+        const maxRadius = rect.width / 2 - 40;
+        const distance = Math.sqrt(x * x + y * y);
+        if (distance > maxRadius) {
+            x = (x / distance) * maxRadius;
+            y = (y / distance) * maxRadius;
+        }
+
+        stick.style.left = `${60 + x}px`;
+        stick.style.top = `${60 + y}px`;
+
+        const normX = (x / maxRadius).toFixed(2);
+        const normY = (y / maxRadius).toFixed(2);
+
+        status.innerText = `x: ${normX}, y: ${normY}`;
+
+        ws.send(JSON.stringify({ x: normX, y: normY }));
+    });
+
+    joystick.addEventListener("mouseup", resetJoystick);
+    joystick.addEventListener("mouseleave", resetJoystick);
+
+    function resetJoystick() {
+        stick.style.left = "60px";
+        stick.style.top = "60px";
+
+        status.innerText = "x: 0, y: 0";
+        ws.send(JSON.stringify({ x: 0, y: 0 }));
+    }
+</script>
+
+</body>
+</html>
